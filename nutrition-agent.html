@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Nutrition Assistant</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f1117;--surface:#1a1d27;--surface2:#22263a;--border:#2e3350;
+  --text:#e2e8f0;--muted:#8892b0;--accent:#4ade80;--accent2:#38bdf8;
+  --accent3:#f472b6;--user-bg:#1e3a5f;--ai-bg:#1a2535;
+  --danger:#f87171;--warn:#fbbf24;--radius:14px;--sw:300px;
+}
+body{font-family:-apple-system,"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;overflow:hidden;font-size:14px;line-height:1.6}
+/* Sidebar */
+#sidebar{width:var(--sw);min-width:var(--sw);background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;transition:transform .3s,width .3s,min-width .3s;overflow:hidden;z-index:100}
+#sidebar.collapsed{width:0;min-width:0;transform:translateX(-100%)}
+.sb-head{padding:18px 16px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.sb-logo{width:32px;height:32px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.sb-head h2{font-size:15px;font-weight:700;white-space:nowrap}
+.sb-head p{font-size:11px;color:var(--muted);white-space:nowrap}
+.sb-body{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
+.sb-body::-webkit-scrollbar{width:4px}
+.sb-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+.sec{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.sec-h{padding:10px 14px;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid transparent;transition:background .15s}
+.sec-h:hover{background:rgba(255,255,255,.04)}
+.sec-h.open{border-bottom-color:var(--border)}
+.sec-h .ch{transition:transform .25s;font-size:10px}
+.sec-h.open .ch{transform:rotate(180deg)}
+.sec-b{padding:12px;display:none}
+.sec-h.open + .sec-b{display:block}
+/* Form controls */
+.ctrl{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-size:12px;outline:none;transition:border-color .2s;font-family:inherit}
+.ctrl:focus{border-color:var(--accent)}
+.ctrl option{background:var(--surface)}
+.pw-wrap{position:relative}
+.pw-wrap .ctrl{padding-right:32px}
+.pw-wrap .eye{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);font-size:13px}
+.btn-primary{width:100%;background:var(--accent2);color:#000;border:none;border-radius:8px;padding:8px 0;font-size:12px;font-weight:700;cursor:pointer;transition:opacity .2s;margin-top:8px}
+.btn-primary:hover{opacity:.85}
+.btn-danger{width:100%;background:rgba(248,113,113,.12);border:1px solid var(--danger);border-radius:8px;padding:9px 0;color:var(--danger);font-size:12px;font-weight:700;cursor:pointer;transition:background .2s}
+.btn-danger:hover{background:rgba(248,113,113,.22)}
+.key-st{font-size:11px;margin-top:6px;text-align:center}
+.key-st.ok{color:var(--accent)}
+.key-st.fail{color:var(--danger)}
+.lbl{display:block;font-size:11px;color:var(--muted);margin:9px 0 3px}
+.lbl:first-child{margin-top:0}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.bmi-box{margin-top:10px;padding:8px 10px;background:var(--bg);border-radius:8px;border:1px solid var(--border);text-align:center;display:none}
+.bmi-val{font-size:20px;font-weight:800;color:var(--accent)}
+.bmi-lbl{font-size:11px;color:var(--muted)}
+/* Quick buttons */
+.qbtn{width:100%;text-align:left;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:12px;cursor:pointer;transition:border-color .2s,background .2s;margin-bottom:5px;display:flex;align-items:center;gap:7px}
+.qbtn:last-child{margin-bottom:0}
+.qbtn:hover{border-color:var(--accent);background:rgba(74,222,128,.07)}
+/* Main */
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg)}
+#topbar{height:56px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:12px;flex-shrink:0}
+#tog{background:none;border:none;cursor:pointer;color:var(--muted);font-size:20px;line-height:1;padding:4px;border-radius:6px;transition:color .2s,background .2s}
+#tog:hover{color:var(--text);background:var(--surface2)}
+.tb-title{font-weight:700;font-size:15px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tb-title span{color:var(--accent)}
+.stats-pill{display:flex;align-items:center;gap:14px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 14px;font-size:11px;color:var(--muted)}
+.stats-pill strong{color:var(--text);font-weight:600}
+.tab-bar{display:flex;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;padding:0 16px}
+.tab{padding:10px 16px;font-size:12px;font-weight:600;cursor:pointer;border:none;background:none;color:var(--muted);border-bottom:2px solid transparent;transition:color .2s,border-color .2s;white-space:nowrap}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab:hover:not(.active){color:var(--text)}
+/* Chat */
+#chat-pane{flex:1;display:flex;flex-direction:column;overflow:hidden}
+#msgs{flex:1;overflow-y:auto;padding:20px 16px;display:flex;flex-direction:column;gap:14px}
+#msgs::-webkit-scrollbar{width:5px}
+#msgs::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+.msg{display:flex;gap:10px;max-width:80%;animation:fadeUp .25s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.msg.user{align-self:flex-end;flex-direction:row-reverse}
+.msg.ai{align-self:flex-start}
+.av{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;margin-top:2px}
+.msg.ai .av{background:linear-gradient(135deg,var(--accent),var(--accent2))}
+.msg.user .av{background:linear-gradient(135deg,var(--accent2),var(--accent3))}
+.bubble{padding:12px 15px;border-radius:var(--radius);font-size:13.5px;line-height:1.65;max-width:100%}
+.msg.ai .bubble{background:var(--ai-bg);border:1px solid var(--border);border-top-left-radius:4px}
+.msg.user .bubble{background:var(--user-bg);border:1px solid #2a4a7f;border-top-right-radius:4px;color:#e0f0ff}
+.bubble strong{color:var(--accent)}
+.bubble em{color:var(--accent2);font-style:normal}
+.bubble code{background:rgba(255,255,255,.07);padding:2px 5px;border-radius:4px;font-size:12px;font-family:"Courier New",monospace}
+.bubble ul,.bubble ol{padding-left:18px;margin:6px 0}
+.bubble li{margin-bottom:3px}
+.bubble h3,.bubble h4{color:var(--accent);margin:10px 0 4px;font-size:13px}
+.bubble table{width:100%;border-collapse:collapse;margin:8px 0;font-size:12px}
+.bubble th{background:var(--surface2);padding:5px 8px;border:1px solid var(--border);color:var(--accent2)}
+.bubble td{padding:5px 8px;border:1px solid var(--border)}
+.bubble hr{border:none;border-top:1px solid var(--border);margin:10px 0}
+.msg-meta{font-size:10px;color:var(--muted);margin-top:4px;padding:0 4px}
+.msg.user .msg-meta{text-align:right}
+.typing{display:flex;gap:4px;align-items:center;padding:14px 15px}
+.typing span{width:7px;height:7px;background:var(--muted);border-radius:50%;animation:bounce .9s infinite}
+.typing span:nth-child(2){animation-delay:.15s}
+.typing span:nth-child(3){animation-delay:.3s}
+@keyframes bounce{0%,60%,100%{transform:translateY(0);opacity:.5}30%{transform:translateY(-6px);opacity:1}}
+#input-bar{padding:12px 16px;background:var(--surface);border-top:1px solid var(--border);display:flex;gap:10px;align-items:flex-end;flex-shrink:0}
+#uinput{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:10px 14px;color:var(--text);font-size:13.5px;outline:none;resize:none;max-height:140px;min-height:42px;overflow-y:auto;font-family:inherit;line-height:1.5;transition:border-color .2s}
+#uinput:focus{border-color:var(--accent)}
+#uinput::placeholder{color:var(--muted)}
+#send-btn{width:42px;height:42px;flex-shrink:0;background:var(--accent);border:none;border-radius:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:opacity .2s,transform .1s}
+#send-btn:hover{opacity:.85}
+#send-btn:active{transform:scale(.93)}
+#send-btn:disabled{opacity:.4;cursor:not-allowed}
+#send-btn svg{width:18px;height:18px;fill:#000}
+/* Welcome */
+.welcome{margin:10px auto 0;max-width:560px;text-align:center;padding:30px 20px}
+.wb-icon{width:64px;height:64px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:30px;margin:0 auto 16px}
+.welcome h2{font-size:20px;font-weight:800;margin-bottom:8px}
+.welcome p{font-size:13px;color:var(--muted);line-height:1.7;max-width:420px;margin:0 auto}
+.chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:18px}
+.chip{background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:12px;color:var(--muted);cursor:pointer;transition:border-color .2s,color .2s}
+.chip:hover{border-color:var(--accent);color:var(--accent)}
+/* Dashboard */
+#dash-pane{flex:1;overflow-y:auto;padding:20px 16px;display:none;flex-direction:column;gap:16px}
+#dash-pane::-webkit-scrollbar{width:5px}
+#dash-pane::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+.dash-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+.m-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 14px;text-align:center}
+.m-card .mi{font-size:22px;margin-bottom:6px}
+.m-card .mv{font-size:22px;font-weight:800;color:var(--accent)}
+.m-card .ml{font-size:11px;color:var(--muted);margin-top:2px}
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+.chart-card h3{font-size:13px;color:var(--muted);margin-bottom:14px;font-weight:600}
+.pb-wrap{margin-bottom:10px}
+.pb-label{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px}
+.pb{height:8px;background:var(--surface2);border-radius:4px;overflow:hidden}
+.pb .fill{height:100%;border-radius:4px}
+.drops{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.drop{width:28px;height:28px;border-radius:50% 50% 50% 0/60% 60% 40% 40%;transform:rotate(-45deg);border:2px solid var(--accent2);cursor:pointer;transition:background .2s}
+.drop.on{background:var(--accent2)}
+.no-data{text-align:center;padding:40px 20px;color:var(--muted);font-size:13px}
+.no-data .ndi{font-size:36px;margin-bottom:10px}
+/* Toast */
+#toast{position:fixed;bottom:24px;right:24px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 16px;font-size:12px;color:var(--text);z-index:9999;transform:translateY(60px);opacity:0;transition:transform .3s,opacity .3s;pointer-events:none;max-width:300px}
+#toast.show{transform:translateY(0);opacity:1}
+#toast.ok{border-color:var(--accent);color:var(--accent)}
+#toast.err{border-color:var(--danger);color:var(--danger)}
+@media(max-width:640px){
+  #sidebar{position:fixed;top:0;left:0;height:100%}
+  #sidebar.collapsed{transform:translateX(-100%)}
+  .stats-pill{display:none}
+  .msg{max-width:95%}
+}
+</style>
+</head>
+<body>
+
+<!-- ── Sidebar ── -->
+<aside id="sidebar">
+  <div class="sb-head">
+    <div class="sb-logo">🥗</div>
+    <div><h2>NutriAI</h2><p>Powered by Llama 3.3 70B</p></div>
+  </div>
+  <div class="sb-body">
+
+    <!-- API Key -->
+    <div class="sec">
+      <div class="sec-h open" data-sec="s-api"><span>🔑 API Key</span><span class="ch">▼</span></div>
+      <div class="sec-b" id="s-api">
+        <div class="pw-wrap">
+          <input class="ctrl" type="password" id="api-inp" placeholder="gsk_..." />
+          <button class="eye" id="eye-btn">👁</button>
+        </div>
+        <button class="btn-primary" id="save-key-btn">Save Key</button>
+        <div class="key-st" id="key-st"></div>
+      </div>
+    </div>
+
+    <!-- Quick Prompts -->
+    <div class="sec">
+      <div class="sec-h open" data-sec="s-quick"><span>⚡ Quick Prompts</span><span class="ch">▼</span></div>
+      <div class="sec-b" id="s-quick">
+        <button class="qbtn" data-p="Create a 7-day weight loss diet plan based on my profile. Include daily calorie targets, macronutrient split, and meal ideas for breakfast, lunch, dinner, and snacks."><span>🏃</span>Weight Loss Plan</button>
+        <button class="qbtn" data-p="Analyze this meal and provide: total calories, protein, carbs, fats, fiber, key vitamins/minerals, health rating 1-10, and suggestions to improve it: "><span>🔍</span>Analyze My Meal</button>
+        <button class="qbtn" data-p="List the top 10 high-protein foods for muscle gain. Include protein per 100g, best preparation methods, and how to incorporate them into daily meals."><span>💪</span>High Protein Foods</button>
+        <button class="qbtn" data-p="Create a diabetes-friendly diet plan with low-GI foods, carb counting guidance, foods to avoid, meal timing, and blood sugar management tips."><span>🩺</span>Diabetes-Friendly Diet</button>
+        <button class="qbtn" data-p="Design a heart-healthy meal plan using DASH diet principles. Include omega-3 rich foods, cholesterol-lowering foods, sodium limits, and sample meals."><span>❤️</span>Heart Healthy Meal</button>
+        <button class="qbtn" data-p="Calculate my daily calorie needs (TDEE) using the Mifflin-St Jeor equation. Show BMR, activity multiplier, and recommended macronutrient split for my goal."><span>🔢</span>Calculate Calories</button>
+        <button class="qbtn" data-p="Give me a complete weekly nutrition tracking template with daily calorie goals, macro targets, hydration log, micronutrient checklist, and daily tips."><span>📊</span>Weekly Summary</button>
+      </div>
+    </div>
+
+    <!-- Health Profile -->
+    <div class="sec">
+      <div class="sec-h open" data-sec="s-prof"><span>👤 Health Profile</span><span class="ch">▼</span></div>
+      <div class="sec-b" id="s-prof">
+        <div class="row2">
+          <div><label class="lbl">Age</label><input class="ctrl" type="number" id="p-age" placeholder="25" min="1" max="120" /></div>
+          <div><label class="lbl">Gender</label><select class="ctrl" id="p-gender"><option value="">Select</option><option>Male</option><option>Female</option><option>Other</option></select></div>
+        </div>
+        <div class="row2" style="margin-top:8px">
+          <div><label class="lbl">Height (cm)</label><input class="ctrl" type="number" id="p-height" placeholder="170" /></div>
+          <div><label class="lbl">Weight (kg)</label><input class="ctrl" type="number" id="p-weight" placeholder="70" /></div>
+        </div>
+        <label class="lbl">Activity Level</label>
+        <select class="ctrl" id="p-act">
+          <option value="">Select</option>
+          <option>Sedentary (desk job, no exercise)</option>
+          <option>Lightly Active (1-3 days/week)</option>
+          <option>Moderately Active (3-5 days/week)</option>
+          <option>Very Active (6-7 days/week)</option>
+          <option>Extremely Active (athlete/physical job)</option>
+        </select>
+        <label class="lbl">Fitness Goal</label>
+        <select class="ctrl" id="p-goal">
+          <option value="">Select</option>
+          <option>Weight Loss</option><option>Muscle Gain</option>
+          <option>Maintenance</option><option>Improve Endurance</option><option>General Health</option>
+        </select>
+        <label class="lbl">Dietary Preference</label>
+        <select class="ctrl" id="p-diet">
+          <option value="">None</option>
+          <option>Vegetarian</option><option>Vegan</option><option>Keto</option>
+          <option>Paleo</option><option>Mediterranean</option><option>Gluten-Free</option>
+          <option>Dairy-Free</option><option>Intermittent Fasting</option>
+        </select>
+        <label class="lbl">Allergies / Restrictions</label>
+        <input class="ctrl" type="text" id="p-allg" placeholder="e.g. nuts, shellfish" />
+        <label class="lbl">Medical Conditions</label>
+        <input class="ctrl" type="text" id="p-med" placeholder="e.g. diabetes, hypertension" />
+        <div class="bmi-box" id="bmi-box">
+          <div class="bmi-val" id="bmi-val">--</div>
+          <div class="bmi-lbl" id="bmi-lbl">BMI</div>
+        </div>
+        <button class="btn-primary" id="save-prof-btn">Save Profile</button>
+      </div>
+    </div>
+
+    <!-- Log Meal -->
+    <div class="sec">
+      <div class="sec-h" data-sec="s-log"><span>📝 Log Meal</span><span class="ch">▼</span></div>
+      <div class="sec-b" id="s-log">
+        <input class="ctrl" type="text" id="log-inp" placeholder="e.g. 2 eggs, toast, OJ" />
+        <button class="btn-primary" id="log-btn">Log &amp; Analyze</button>
+      </div>
+    </div>
+
+    <!-- Clear -->
+    <button class="btn-danger" id="clear-btn">🗑 Clear Chat History</button>
+  </div>
+</aside>
+
+<!-- ── Main ── -->
+<main id="main">
+  <div id="topbar">
+    <button id="tog" title="Toggle Sidebar">☰</button>
+    <div class="tb-title">🥗 AI <span>Nutrition</span> Assistant</div>
+    <div class="stats-pill">
+      💬 <strong id="st-msgs">0</strong>&nbsp;msgs &nbsp;|&nbsp;
+      🔤 <strong id="st-tok">0</strong>&nbsp;tokens
+    </div>
+  </div>
+
+  <div class="tab-bar">
+    <button class="tab active" data-tab="chat">💬 Chat</button>
+    <button class="tab" data-tab="dash">📊 Dashboard</button>
+  </div>
+
+  <!-- Chat Pane -->
+  <div id="chat-pane">
+    <div id="msgs"></div>
+    <div id="input-bar">
+      <textarea id="uinput" rows="1" placeholder="Ask about nutrition, diet plans, meal analysis..."></textarea>
+      <button id="send-btn" title="Send (Enter)">
+        <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Dashboard Pane -->
+  <div id="dash-pane">
+    <div class="dash-grid" id="d-metrics"></div>
+    <div id="d-charts"></div>
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── Config ── */
+  var API_KEY_DEFAULT = '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';
+  var MODEL    = 'llama-3.3-70b-versatile';
+  var GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+
+  var SYSTEM_PROMPT = 'You are NutriAI, an advanced AI Nutrition Assistant powered by evidence-based nutritional science.\n\n'
+    + 'CAPABILITIES:\n'
+    + '1. Personalized Diet Planning: Generate meal plans based on age, gender, height, weight, BMI, activity level, goals (weight loss, muscle gain, maintenance), dietary preferences (vegetarian, vegan, keto, paleo, Mediterranean, gluten-free, dairy-free, intermittent fasting), allergies, and medical conditions. Calculate TDEE using Mifflin-St Jeor BMR equation.\n'
+    + '2. Nutritional Information: Detailed breakdown of calories, protein, carbs, fiber, fats, vitamins (A,B,C,D,E,K), minerals (calcium, iron, magnesium, potassium, zinc) for any food.\n'
+    + '3. Meal Recommendations: Balanced meals, healthy swaps, portion sizes, grocery lists, weekly diet plans.\n'
+    + '4. Health Advisory: Preventive nutrition for diabetes (low-GI, carb counting), hypertension (DASH diet), heart health (omega-3, Mediterranean), obesity (caloric deficit), anemia (iron-rich foods), bone health (calcium, vitamin D).\n'
+    + '5. Food Logging & Analysis: When users describe meals, estimate calories and macros, identify nutritional gaps, compare against RDA, suggest improvements.\n'
+    + '6. Hydration Guidance: Daily water intake recommendations based on weight and activity.\n'
+    + '7. Fitness Nutrition: Pre/post-workout nutrition, protein timing, carb loading, recovery.\n\n'
+    + 'RESPONSE FORMAT: Use markdown with headers (##, ###), bullet points, bold for key values, and tables for meal plans. Be comprehensive yet practical.\n\n'
+    + 'DISCLAIMER: Always remind users to consult a registered dietitian or healthcare provider for medical conditions. You provide educational guidance only, not medical diagnosis or treatment.\n\n'
+    + 'When a user profile is provided, incorporate it into all recommendations for maximum personalization.';
+
+  /* ── State ── */
+  var apiKey      = localStorage.getItem('nutri_key') || API_KEY_DEFAULT;
+  var profile     = safeJSON('nutri_profile', {});
+  var history     = safeJSON('nutri_history', []);
+  var mealLogs    = safeJSON('nutri_logs', []);
+  var totalTok    = parseInt(localStorage.getItem('nutri_tok') || '0', 10);
+  var hydration   = parseInt(localStorage.getItem('nutri_hyd') || '0', 10);
+  var busy        = false;
+  var dCharts     = {};
+
+  function safeJSON(key, fallback) {
+    try { return JSON.parse(localStorage.getItem(key)) || fallback; }
+    catch (e) { return fallback; }
+  }
+
+  /* ── DOM ── */
+  var sidebar   = document.getElementById('sidebar');
+  var togBtn    = document.getElementById('tog');
+  var apiInp    = document.getElementById('api-inp');
+  var eyeBtn    = document.getElementById('eye-btn');
+  var saveKeyBtn= document.getElementById('save-key-btn');
+  var keySt     = document.getElementById('key-st');
+  var saveProfBtn= document.getElementById('save-prof-btn');
+  var clearBtn  = document.getElementById('clear-btn');
+  var logInp    = document.getElementById('log-inp');
+  var logBtn    = document.getElementById('log-btn');
+  var msgsEl    = document.getElementById('msgs');
+  var uinput    = document.getElementById('uinput');
+  var sendBtn   = document.getElementById('send-btn');
+  var stMsgs    = document.getElementById('st-msgs');
+  var stTok     = document.getElementById('st-tok');
+  var toastEl   = document.getElementById('toast');
+  var chatPane  = document.getElementById('chat-pane');
+  var dashPane  = document.getElementById('dash-pane');
+
+  /* ── Init ── */
+  function init() {
+    localStorage.setItem('nutri_key', apiKey);
+    apiInp.value = apiKey;
+    setKeySt(apiKey ? 'ok' : '');
+    loadProfile();
+    updateStats();
+    restoreChat();
+    bindEvents();
+    // Open all collapsible sections that start open
+    document.querySelectorAll('.sec-h.open').forEach(function(h) {
+      var id = h.getAttribute('data-sec');
+      var body = document.getElementById(id);
+      if (body) body.style.display = 'block';
+    });
+  }
+
+  /* ── Events ── */
+  function bindEvents() {
+    togBtn.addEventListener('click', function () { sidebar.classList.toggle('collapsed'); });
+
+    eyeBtn.addEventListener('click', function () {
+      apiInp.type = apiInp.type === 'password' ? 'text' : 'password';
+    });
+
+    saveKeyBtn.addEventListener('click', function () {
+      var k = apiInp.value.trim();
+      if (!k || k.indexOf('gsk_') !== 0) { setKeySt('fail', 'Key must start with gsk_'); return; }
+      apiKey = k;
+      localStorage.setItem('nutri_key', apiKey);
+      setKeySt('ok', 'Saved!');
+      toast('API key saved', 'ok');
+    });
+
+    saveProfBtn.addEventListener('click', saveProfile);
+
+    document.getElementById('p-height').addEventListener('input', calcBMI);
+    document.getElementById('p-weight').addEventListener('input', calcBMI);
+
+    clearBtn.addEventListener('click', function () {
+      history = [];
+      localStorage.removeItem('nutri_history');
+      msgsEl.innerHTML = '';
+      showWelcome();
+      updateStats();
+      toast('Chat cleared', 'ok');
+    });
+
+    logBtn.addEventListener('click', function () {
+      var meal = logInp.value.trim();
+      if (!meal) return;
+      logInp.value = '';
+      switchTab('chat');
+      var prompt = 'Please log and analyze this meal: "' + meal + '"\n\nProvide:\n1. Estimated total calories\n2. Macronutrient breakdown (protein, carbs, fats, fiber)\n3. Key vitamins and minerals present\n4. Health rating out of 10\n5. Specific suggestions to improve nutritional balance';
+      doSend(prompt);
+      mealLogs.push({ meal: meal, time: new Date().toISOString() });
+      localStorage.setItem('nutri_logs', JSON.stringify(mealLogs));
+    });
+
+    uinput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+    });
+    uinput.addEventListener('input', autoResize);
+    sendBtn.addEventListener('click', handleSend);
+
+    document.querySelectorAll('.qbtn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        switchTab('chat');
+        doSend(btn.getAttribute('data-p'));
+      });
+    });
+
+    document.querySelectorAll('.tab').forEach(function (t) {
+      t.addEventListener('click', function () { switchTab(t.getAttribute('data-tab')); });
+    });
+
+    document.querySelectorAll('.sec-h').forEach(function (h) {
+      h.addEventListener('click', function () {
+        var id = h.getAttribute('data-sec');
+        var body = document.getElementById(id);
+        if (!body) return;
+        var isOpen = h.classList.toggle('open');
+        body.style.display = isOpen ? 'block' : 'none';
+      });
+    });
+  }
+
+  /* ── Tabs ── */
+  function switchTab(tab) {
+    document.querySelectorAll('.tab').forEach(function (t) {
+      t.classList.toggle('active', t.getAttribute('data-tab') === tab);
+    });
+    if (tab === 'chat') {
+      chatPane.style.display = 'flex';
+      dashPane.style.display = 'none';
+    } else {
+      chatPane.style.display = 'none';
+      dashPane.style.display = 'flex';
+      renderDash();
+    }
+  }
+
+  /* ── Send ── */
+  function handleSend() {
+    var text = uinput.value.trim();
+    if (!text || busy) return;
+    uinput.value = '';
+    autoResize();
+    doSend(text);
+  }
+
+  function doSend(text) {
+    if (!text || busy) return;
+    var banner = document.getElementById('welcome-banner');
+    if (banner) banner.remove();
+
+    addMsg('user', text);
+    history.push({ role: 'user', content: text });
+
+    busy = true;
+    sendBtn.disabled = true;
+    var typId = showTyping();
+
+    var messages = buildMessages();
+    var body = JSON.stringify({
+      model: MODEL,
+      messages: messages,
+      temperature: 0.7,
+      max_tokens: 2048,
+      stream: false
+    });
+
+    fetch(GROQ_URL, {
+      method: 'POST',
+      mode: 'cors',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + apiKey
+      },
+      body: body
+    })
+    .then(function (res) {
+      removeTyping(typId);
+      if (!res.ok) {
+        return res.json().catch(function () { return {}; }).then(function (errBody) {
+          var msg = errBody && errBody.error && errBody.error.message
+            ? errBody.error.message
+            : 'API error ' + res.status;
+          if (res.status === 401) msg = 'Invalid API key. Please update it in the sidebar.';
+          if (res.status === 429) msg = 'Rate limit reached. Please wait a moment and try again.';
+          throw new Error(msg);
+        });
+      }
+      return res.json();
+    })
+    .then(function (data) {
+      var content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content
+        ? data.choices[0].message.content
+        : 'No response received.';
+      var usage = data.usage || {};
+      history.push({ role: 'assistant', content: content });
+      localStorage.setItem('nutri_history', JSON.stringify(history.slice(-40)));
+      addMsg('ai', content);
+      totalTok += usage.total_tokens || Math.ceil((text.length + content.length) / 4);
+      localStorage.setItem('nutri_tok', String(totalTok));
+      updateStats();
+    })
+    .catch(function (err) {
+      removeTyping(typId);
+      var isFileProt = window.location.protocol === 'file:';
+      var extra = isFileProt
+        ? '\n\nYou are opening this file directly from disk (file://). Browsers block external API calls in this mode.\n\nFix: run a local server:\n  npx serve .\nThen open: http://localhost:3000/nutrition-agent.html'
+        : '';
+      addMsg('ai', '**Error:** ' + err.message + extra);
+      toast(err.message, 'err');
+    })
+    .finally(function () {
+      busy = false;
+      sendBtn.disabled = false;
+    });
+  }
+
+  function buildMessages() {
+    var profCtx = profileContext();
+    var sys = SYSTEM_PROMPT + (profCtx ? '\n\nUSER PROFILE: ' + profCtx : '');
+    var msgs = [{ role: 'system', content: sys }];
+    var slice = history.slice(-20);
+    for (var i = 0; i < slice.length; i++) msgs.push(slice[i]);
+    return msgs;
+  }
+
+  function profileContext() {
+    var p = profile;
+    if (!p.age && !p.weight && !p.height) return '';
+    var parts = [];
+    if (p.age)    parts.push('Age: ' + p.age);
+    if (p.gender) parts.push('Gender: ' + p.gender);
+    if (p.height) parts.push('Height: ' + p.height + 'cm');
+    if (p.weight) parts.push('Weight: ' + p.weight + 'kg');
+    if (p.height && p.weight) {
+      var bmi = (parseFloat(p.weight) / Math.pow(parseFloat(p.height) / 100, 2)).toFixed(1);
+      parts.push('BMI: ' + bmi + ' (' + bmiCat(parseFloat(bmi)) + ')');
+    }
+    if (p.act)    parts.push('Activity: ' + p.act);
+    if (p.goal)   parts.push('Goal: ' + p.goal);
+    if (p.diet)   parts.push('Diet: ' + p.diet);
+    if (p.allg)   parts.push('Allergies: ' + p.allg);
+    if (p.med)    parts.push('Medical: ' + p.med);
+    return parts.join(', ');
+  }
+
+  /* ── Rendering ── */
+  function addMsg(role, text) {
+    var wrap = document.createElement('div');
+    wrap.className = 'msg ' + role;
+
+    var av = document.createElement('div');
+    av.className = 'av';
+    av.textContent = role === 'ai' ? '🥗' : '👤';
+
+    var inner = document.createElement('div');
+
+    var bub = document.createElement('div');
+    bub.className = 'bubble';
+    bub.innerHTML = mdToHtml(text);
+
+    var meta = document.createElement('div');
+    meta.className = 'msg-meta';
+    meta.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    inner.appendChild(bub);
+    inner.appendChild(meta);
+    wrap.appendChild(av);
+    wrap.appendChild(inner);
+    msgsEl.appendChild(wrap);
+    msgsEl.scrollTop = msgsEl.scrollHeight;
+  }
+
+  function showTyping() {
+    var id = 'typ-' + Date.now();
+    var wrap = document.createElement('div');
+    wrap.className = 'msg ai';
+    wrap.id = id;
+    var av = document.createElement('div');
+    av.className = 'av';
+    av.textContent = '🥗';
+    var bub = document.createElement('div');
+    bub.className = 'bubble';
+    bub.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
+    wrap.appendChild(av);
+    wrap.appendChild(bub);
+    msgsEl.appendChild(wrap);
+    msgsEl.scrollTop = msgsEl.scrollHeight;
+    return id;
+  }
+
+  function removeTyping(id) {
+    var el = document.getElementById(id);
+    if (el) el.remove();
+  }
+
+  function showWelcome() {
+    var div = document.createElement('div');
+    div.id = 'welcome-banner';
+    div.className = 'welcome';
+    div.innerHTML = '<div class="wb-icon">🥗</div>'
+      + '<h2>Your AI Nutrition Coach</h2>'
+      + '<p>Personalized diet plans, calorie estimation, meal analysis, health advisory &amp; nutrition tracking — powered by evidence-based science.</p>'
+      + '<div class="chips">'
+      + '<div class="chip" data-c="What can you help me with?">What can you do?</div>'
+      + '<div class="chip" data-c="Create a balanced 7-day meal plan for me">Meal Plan</div>'
+      + '<div class="chip" data-c="What foods are highest in protein?">Protein Foods</div>'
+      + '<div class="chip" data-c="How many calories should I eat per day?">Daily Calories</div>'
+      + '<div class="chip" data-c="Give me tips for healthy eating habits">Healthy Tips</div>'
+      + '</div>';
+    msgsEl.appendChild(div);
+    div.querySelectorAll('.chip').forEach(function (c) {
+      c.addEventListener('click', function () { doSend(c.getAttribute('data-c')); });
+    });
+  }
+
+  function restoreChat() {
+    if (history.length === 0) {
+      showWelcome();
+    } else {
+      for (var i = 0; i < history.length; i++) {
+        addMsg(history[i].role === 'user' ? 'user' : 'ai', history[i].content);
+      }
+    }
+  }
+
+  /* ── Markdown → HTML ── */
+  function esc(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  function inline(s) {
+    var backtickRe = new RegExp('\x60([^\x60]+)\x60', 'g');
+    return esc(s)
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(backtickRe, '<code>$1</code>');
+  }
+
+  function mdToHtml(md) {
+    var lines = md.split('\n');
+    var out = [];
+    var i = 0;
+    while (i < lines.length) {
+      var line = lines[i];
+
+      // Headings
+      var mH4 = line.match(/^####\s+(.+)/);
+      if (mH4) { out.push('<h4>' + esc(mH4[1]) + '</h4>'); i++; continue; }
+      var mH3 = line.match(/^###\s+(.+)/);
+      if (mH3) { out.push('<h3>' + esc(mH3[1]) + '</h3>'); i++; continue; }
+      var mH2 = line.match(/^##\s+(.+)/);
+      if (mH2) { out.push('<h3>' + esc(mH2[1]) + '</h3>'); i++; continue; }
+      var mH1 = line.match(/^#\s+(.+)/);
+      if (mH1) { out.push('<h3>' + esc(mH1[1]) + '</h3>'); i++; continue; }
+
+      // HR
+      if (/^---+$/.test(line)) { out.push('<hr/>'); i++; continue; }
+
+      // Table
+      if (/^\|.+\|$/.test(line)) {
+        var rows = [];
+        while (i < lines.length && /^\|.+\|$/.test(lines[i])) {
+          var cells = lines[i].slice(1, -1).split('|').map(function (c) { return c.trim(); });
+          var isSep = cells.every(function (c) { return /^[-: ]+$/.test(c); });
+          if (!isSep) {
+            var tag = rows.length === 0 ? 'th' : 'td';
+            rows.push('<tr>' + cells.map(function (c) { return '<' + tag + '>' + inline(c) + '</' + tag + '>'; }).join('') + '</tr>');
+          }
+          i++;
+        }
+        if (rows.length) out.push('<table>' + rows.join('') + '</table>');
+        continue;
+      }
+
+      // Unordered list
+      if (/^[-*]\s/.test(line)) {
+        var items = [];
+        while (i < lines.length && /^[-*]\s/.test(lines[i])) {
+          items.push('<li>' + inline(lines[i].replace(/^[-*]\s+/, '')) + '</li>');
+          i++;
+        }
+        out.push('<ul>' + items.join('') + '</ul>');
+        continue;
+      }
+
+      // Ordered list
+      if (/^\d+\.\s/.test(line)) {
+        var oitems = [];
+        while (i < lines.length && /^\d+\.\s/.test(lines[i])) {
+          oitems.push('<li>' + inline(lines[i].replace(/^\d+\.\s+/, '')) + '</li>');
+          i++;
+        }
+        out.push('<ol>' + oitems.join('') + '</ol>');
+        continue;
+      }
+
+      // Blank line
+      if (line.trim() === '') { out.push('<br>'); i++; continue; }
+
+      // Paragraph
+      out.push('<p>' + inline(line) + '</p>');
+      i++;
+    }
+    return out.join('\n');
+  }
+
+  /* ── Profile ── */
+  function loadProfile() {
+    var p = profile;
+    if (p.age)    document.getElementById('p-age').value    = p.age;
+    if (p.gender) document.getElementById('p-gender').value = p.gender;
+    if (p.height) document.getElementById('p-height').value = p.height;
+    if (p.weight) document.getElementById('p-weight').value = p.weight;
+    if (p.act)    document.getElementById('p-act').value    = p.act;
+    if (p.goal)   document.getElementById('p-goal').value   = p.goal;
+    if (p.diet)   document.getElementById('p-diet').value   = p.diet;
+    if (p.allg)   document.getElementById('p-allg').value   = p.allg;
+    if (p.med)    document.getElementById('p-med').value    = p.med;
+    calcBMI();
+  }
+
+  function saveProfile() {
+    profile = {
+      age:    document.getElementById('p-age').value,
+      gender: document.getElementById('p-gender').value,
+      height: document.getElementById('p-height').value,
+      weight: document.getElementById('p-weight').value,
+      act:    document.getElementById('p-act').value,
+      goal:   document.getElementById('p-goal').value,
+      diet:   document.getElementById('p-diet').value,
+      allg:   document.getElementById('p-allg').value,
+      med:    document.getElementById('p-med').value
+    };
+    localStorage.setItem('nutri_profile', JSON.stringify(profile));
+    calcBMI();
+    toast('Profile saved! AI will personalize responses for you.', 'ok');
+  }
+
+  function calcBMI() {
+    var h = parseFloat(document.getElementById('p-height').value);
+    var w = parseFloat(document.getElementById('p-weight').value);
+    var box = document.getElementById('bmi-box');
+    if (h > 0 && w > 0) {
+      var bmi = (w / Math.pow(h / 100, 2)).toFixed(1);
+      var valEl = document.getElementById('bmi-val');
+      valEl.textContent = bmi;
+      document.getElementById('bmi-lbl').textContent = bmiCat(parseFloat(bmi));
+      var b = parseFloat(bmi);
+      valEl.style.color = b < 18.5 ? 'var(--warn)' : b < 25 ? 'var(--accent)' : b < 30 ? 'var(--warn)' : 'var(--danger)';
+      box.style.display = 'block';
+    } else {
+      box.style.display = 'none';
+    }
+  }
+
+  function bmiCat(b) {
+    if (b < 18.5) return 'Underweight';
+    if (b < 25)   return 'Normal Weight';
+    if (b < 30)   return 'Overweight';
+    return 'Obese';
+  }
+
+  /* ── Dashboard ── */
+  function renderDash() {
+    var mc = document.getElementById('d-metrics');
+    var dc = document.getElementById('d-charts');
+    var p  = profile;
+
+    // TDEE
+    var tdee = 0;
+    if (p.weight && p.height && p.age && p.gender) {
+      var w = parseFloat(p.weight), h = parseFloat(p.height), a = parseFloat(p.age);
+      var bmr = p.gender === 'Male'
+        ? 10 * w + 6.25 * h - 5 * a + 5
+        : 10 * w + 6.25 * h - 5 * a - 161;
+      var act = p.act || '';
+      var mult = act.indexOf('Lightly')    !== -1 ? 1.375
+               : act.indexOf('Moderately') !== -1 ? 1.55
+               : act.indexOf('Very')       !== -1 ? 1.725
+               : act.indexOf('Extremely')  !== -1 ? 1.9
+               : 1.2;
+      tdee = Math.round(bmr * mult);
+    }
+
+    var bmiVal = (p.weight && p.height)
+      ? (parseFloat(p.weight) / Math.pow(parseFloat(p.height) / 100, 2)).toFixed(1)
+      : '--';
+    var waterTarget = p.weight ? (parseFloat(p.weight) * 0.033).toFixed(1) : '2.5';
+    var waterConsumed = (hydration * 0.25).toFixed(1);
+    var userMsgs = history.filter(function (m) { return m.role === 'user'; }).length;
+
+    mc.innerHTML = '<div class="m-card"><div class="mi">🔥</div><div class="mv" style="color:var(--accent3)">' + (tdee || '--') + '</div><div class="ml">Daily Calories (TDEE)</div></div>'
+      + '<div class="m-card"><div class="mi">⚖️</div><div class="mv">' + (p.weight || '--') + ' kg</div><div class="ml">Body Weight</div></div>'
+      + '<div class="m-card"><div class="mi">📏</div><div class="mv">' + bmiVal + '</div><div class="ml">BMI</div></div>'
+      + '<div class="m-card"><div class="mi">💬</div><div class="mv" style="color:var(--accent2)">' + userMsgs + '</div><div class="ml">Questions Asked</div></div>'
+      + '<div class="m-card"><div class="mi">💧</div><div class="mv" style="color:var(--accent2)">' + waterConsumed + 'L</div><div class="ml">Water Today / ' + waterTarget + 'L target</div></div>'
+      + '<div class="m-card"><div class="mi">📝</div><div class="mv" style="color:var(--warn)">' + mealLogs.length + '</div><div class="ml">Meals Logged</div></div>';
+
+    dc.innerHTML = '';
+
+    // No profile card
+    if (!p.age && !p.weight) {
+      var nd = document.createElement('div');
+      nd.className = 'chart-card';
+      nd.innerHTML = '<div class="no-data"><div class="ndi">👤</div><strong>Complete Your Health Profile</strong><p style="margin-top:8px;font-size:12px">Fill in your age, weight, height and goals in the sidebar to unlock personalized calorie targets, macro splits and TDEE.</p></div>';
+      dc.appendChild(nd);
+    }
+
+    // Macro doughnut
+    if (tdee > 0) {
+      var goal = p.goal || '';
+      var prot = 25, carb = 50, fat = 25;
+      if (goal.indexOf('Muscle') !== -1)      { prot = 30; carb = 45; fat = 25; }
+      else if (goal.indexOf('Loss') !== -1)   { prot = 35; carb = 35; fat = 30; }
+      else if ((p.diet || '').indexOf('Keto') !== -1) { prot = 25; carb = 10; fat = 65; }
+
+      var donutCard = document.createElement('div');
+      donutCard.className = 'chart-card';
+      donutCard.innerHTML = '<h3>Recommended Macronutrient Split</h3><div style="max-height:220px;position:relative"><canvas id="c-macro"></canvas></div>';
+      dc.appendChild(donutCard);
+
+      setTimeout(function () {
+        var ctx = document.getElementById('c-macro');
+        if (!ctx) return;
+        if (dCharts.macro) dCharts.macro.destroy();
+        dCharts.macro = new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: ['Protein ' + prot + '%', 'Carbs ' + carb + '%', 'Fats ' + fat + '%'],
+            datasets: [{ data: [prot, carb, fat], backgroundColor: ['#4ade80', '#38bdf8', '#f472b6'], borderColor: '#1a1d27', borderWidth: 3 }]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: true, cutout: '65%',
+            plugins: { legend: { position: 'bottom', labels: { color: '#8892b0', font: { size: 11 }, padding: 14 } } }
+          }
+        });
+      }, 100);
+
+      // Macro bars
+      var protG = Math.round((tdee * prot / 100) / 4);
+      var carbG = Math.round((tdee * carb / 100) / 4);
+      var fatG  = Math.round((tdee * fat / 100) / 9);
+      var barCard = document.createElement('div');
+      barCard.className = 'chart-card';
+      barCard.innerHTML = '<h3>Daily Macro Targets</h3>'
+        + '<div class="pb-wrap"><div class="pb-label"><span>🥩 Protein</span><span>' + protG + 'g / day</span></div><div class="pb"><div class="fill" style="width:100%;background:var(--accent)"></div></div></div>'
+        + '<div class="pb-wrap"><div class="pb-label"><span>🍞 Carbohydrates</span><span>' + carbG + 'g / day</span></div><div class="pb"><div class="fill" style="width:100%;background:var(--accent2)"></div></div></div>'
+        + '<div class="pb-wrap"><div class="pb-label"><span>🥑 Fats</span><span>' + fatG + 'g / day</span></div><div class="pb"><div class="fill" style="width:100%;background:var(--accent3)"></div></div></div>';
+      dc.appendChild(barCard);
+
+      // Calorie bar chart
+      var targetCal = tdee;
+      if (goal.indexOf('Loss') !== -1)   targetCal = Math.round(tdee * 0.8);
+      if (goal.indexOf('Muscle') !== -1) targetCal = Math.round(tdee * 1.1);
+      var calCard = document.createElement('div');
+      calCard.className = 'chart-card';
+      calCard.innerHTML = '<h3>Calorie Target for Goal: ' + (goal || 'Maintenance') + '</h3><div style="max-height:200px;position:relative"><canvas id="c-cal"></canvas></div>';
+      dc.appendChild(calCard);
+
+      setTimeout(function () {
+        var ctx2 = document.getElementById('c-cal');
+        if (!ctx2) return;
+        if (dCharts.cal) dCharts.cal.destroy();
+        dCharts.cal = new Chart(ctx2, {
+          type: 'bar',
+          data: {
+            labels: ['TDEE (Maintenance)', 'Target (' + (goal || 'Maintenance') + ')'],
+            datasets: [{
+              data: [tdee, targetCal],
+              backgroundColor: ['rgba(56,189,248,0.5)', 'rgba(74,222,128,0.5)'],
+              borderColor: ['#38bdf8', '#4ade80'],
+              borderWidth: 2,
+              borderRadius: 8
+            }]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: true,
+            plugins: { legend: { display: false } },
+            scales: {
+              y: { ticks: { color: '#8892b0', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,.05)' } },
+              x: { ticks: { color: '#8892b0', font: { size: 10 } }, grid: { display: false } }
+            }
+          }
+        });
+      }, 100);
+    }
+
+    // Hydration tracker
+    var dropCount = p.weight ? Math.round(parseFloat(p.weight) * 0.033 * 4) : 10;
+    var hydCard = document.createElement('div');
+    hydCard.className = 'chart-card';
+    var dropsHtml = '';
+    for (var d = 0; d < dropCount; d++) {
+      dropsHtml += '<div class="drop' + (d < hydration ? ' on' : '') + '" data-i="' + d + '"></div>';
+    }
+    hydCard.innerHTML = '<h3>💧 Hydration Tracker — Today</h3>'
+      + '<p style="font-size:11px;color:var(--muted);margin-bottom:4px">Each drop = 250ml &nbsp;·&nbsp; Target: ' + (dropCount * 0.25).toFixed(1) + 'L &nbsp;·&nbsp; Logged: ' + waterConsumed + 'L</p>'
+      + '<div class="drops" id="drops">' + dropsHtml + '</div>'
+      + '<button id="hyd-reset" style="margin-top:10px;font-size:11px;color:var(--muted);background:none;border:none;cursor:pointer">Reset</button>';
+    dc.appendChild(hydCard);
+
+    setTimeout(function () {
+      var drops = document.getElementById('drops');
+      if (drops) {
+        drops.querySelectorAll('.drop').forEach(function (el) {
+          el.addEventListener('click', function () {
+            var idx = parseInt(el.getAttribute('data-i'), 10);
+            hydration = idx < hydration ? idx : idx + 1;
+            localStorage.setItem('nutri_hyd', String(hydration));
+            renderDash();
+          });
+        });
+      }
+      var reset = document.getElementById('hyd-reset');
+      if (reset) {
+        reset.addEventListener('click', function () {
+          hydration = 0;
+          localStorage.setItem('nutri_hyd', '0');
+          renderDash();
+        });
+      }
+    }, 50);
+  }
+
+  /* ── Helpers ── */
+  function updateStats() {
+    var userMsgs = history.filter(function (m) { return m.role === 'user'; }).length;
+    stMsgs.textContent = userMsgs;
+    stTok.textContent  = totalTok > 999 ? (totalTok / 1000).toFixed(1) + 'k' : String(totalTok);
+  }
+
+  function setKeySt(type, msg) {
+    if (type === 'ok') {
+      keySt.className = 'key-st ok';
+      keySt.textContent = msg || '✓ Key configured';
+    } else if (type === 'fail') {
+      keySt.className = 'key-st fail';
+      keySt.textContent = msg || '✗ Invalid key';
+    } else {
+      keySt.textContent = '';
+    }
+  }
+
+  function autoResize() {
+    uinput.style.height = 'auto';
+    uinput.style.height = Math.min(uinput.scrollHeight, 140) + 'px';
+  }
+
+  var toastTimer;
+  function toast(msg, type) {
+    toastEl.textContent = msg;
+    toastEl.className   = 'show ' + (type || '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.className = ''; }, 3200);
+  }
+
+  /* ── Start ── */
+  init();
+
+})();
+</script>
+</body>
+</html>
